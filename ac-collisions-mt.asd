@@ -12,6 +12,7 @@
     :depends-on (:alexandria
                  :serapeum
                  :cl-polynomial
+                 :stateless-iterators
                  :pzmq
                  :sqlite
                  :flexi-streams

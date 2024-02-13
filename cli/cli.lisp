@@ -42,7 +42,9 @@
 (defun show-degree (deg)
   (let ((collisions (collisions (get-db-pathname) deg)))
     (dolist (collision collisions)
-      (format *standard-output* "~a~%" collision))))
+      (dolist (poly collision)
+        (format *standard-output* "~a~%" poly))
+      (terpri *standard-output*))))
 
 (defun show (options)
   (case (length options)

@@ -55,9 +55,34 @@
               (pzmq:send control-socket nil)
               (mapc #'sb-thread:join-thread threads))))))))
 
+(defun unroll-factors (factors)
+  (labels ((%unroll (factor acc)
+             (destructuring-bind (m . f) factor
+               (append (loop repeat m collect f) acc))))
+    (reduce #'%unroll factors
+            :initial-value nil
+            :from-end t)))
+
+(defun construct-collisions (f)
+  (multiple-value-bind (palindromes non-palindromes)
+      (sera:partition #'palindromep (unroll-factors (zx:factor f)))
+    (let* ((sym-part (reduce #'p:multiply palindromes :initial-value (car non-palindromes)))
+           (non-sym-part (cdr non-palindromes))
+           (fns-iter (si:list->iterator (list #'identity #'reverse-polynomial)))
+           (f-iter (si:list->iterator non-sym-part))
+           (iter (si:imap
+                  (lambda (elt)
+                    (destructuring-bind (fn . f) elt
+                      (funcall fn f)))
+                  (si:product fns-iter f-iter))))
+      (si:collect
+          (si:imap
+           (lambda (f) (p:multiply f sym-part))
+           iter)))))
+
 (defun collisions (db-pathname deg)
   (sqlite:with-open-database (db (uiop:native-namestring (pathname db-pathname)))
-    (mapcar (alex:compose #'p:sequence->polynomial #'car)
+    (mapcar (alex:compose #'construct-collisions #'p:sequence->polynomial #'car)
             (sqlite:execute-to-list db "select poly from collisions where degree = ?" deg))))
 
 (defun summary (db-pathname)
