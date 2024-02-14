@@ -27,8 +27,7 @@
   :serial t
   :components ((:file "package")
                (:file "cli"))
-  :depends-on (:ac-collisions-mt
-               :unix-opts)
+  :depends-on (:ac-collisions-mt)
   :build-operation program-op
   :build-pathname "ac-collisions"
   :entry-point "ac-collisions-mt/cli:main")
