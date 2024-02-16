@@ -36,7 +36,8 @@
 (defun show-summary ()
   (let ((summary (summary (get-db-pathname))))
     (dolist (entry summary)
-      (apply #'format *standard-output* "Degree=~d, Processed=~d, Collisions=~d~%"
+      (apply #'format *standard-output*
+             "Degree=~d, Processed=~d, Collisions=~d, Irreducible=~d~%"
              entry))))
 
 (defun show-degree (deg)

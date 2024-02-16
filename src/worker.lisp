@@ -1,5 +1,10 @@
 (in-package :ac-collisions-mt)
 
+(sera:defconstructor report
+  (processed   integer)
+  (irreducible integer)
+  (found       list))
+
 (sera:-> reverse-polynomial (p:polynomial)
          (values p:polynomial &optional))
 (defun reverse-polynomial (f)
@@ -7,7 +12,7 @@
     (p:polynomial
      (reduce
       (lambda (acc m)
-        (u:bind-monomial (%d c) m
+        (p:bind-monomial (%d c) m
           (cons (cons (- d %d) c) acc)))
       (p:polynomial-coeffs f)
       :initial-value nil))))
@@ -33,13 +38,15 @@
                  (destructuring-bind (m . f) factor
                    (if (funcall fn f) m 0)))))
 
-
-(sera:-> our-client-p (p:polynomial)
+(sera:-> collidesp (list)
          (values boolean &optional))
-(defun our-client-p (f)
-  (> (factorization-count-if
-      (zx:factor f) (alex:compose #'not #'palindromep))
-     1))
+(defun collidesp (factors)
+  (> (factorization-count-if factors (alex:compose #'not #'palindromep)) 1))
+
+(sera:-> irreduciblep (list)
+         (values boolean &optional))
+(defun irreduciblep (factors)
+  (= (factorization-count-if factors (constantly t)) 1))
 
 (defun worker (deg)
   (pzmq:with-sockets ((worker-socket  :pub)
@@ -48,18 +55,25 @@
     (pzmq:connect worker-socket  "inproc://data")
     (pzmq:connect control-socket "inproc://control")
     (let ((processed 0)
+          (irreducible 0)
           (time (get-universal-time))
           found)
-      (loop while t do
-            (let ((poly (random-polynomial deg)))
-              (when (our-client-p poly)
-                (push (coerce (p:polynomial->list poly) 'bit-vector) found)))
+      (loop for poly = (random-polynomial deg)
+            for factors = (zx:factor poly)
+            while t do
+            (when (collidesp factors)
+              (push (coerce (p:polynomial->list poly) 'bit-vector) found))
+            (when (irreduciblep factors)
+              (incf irreducible))
             (incf processed)
             (when (> (get-universal-time) time)
               (pzmq:send worker-socket
                          (flexi-streams:with-output-to-sequence (out)
-                           (cl-store:store (cons processed found) out)))
-              (setq processed 0 found nil time (get-universal-time)))
+                           (cl-store:store (report processed irreducible found) out)))
+              (setq processed   0
+                    irreducible 0
+                    found       nil
+                    time        (get-universal-time)))
             (ignore-errors
               (when (pzmq:recv-octets control-socket :dontwait t)
                 (return nil)))))))

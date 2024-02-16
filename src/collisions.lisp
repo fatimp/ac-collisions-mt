@@ -5,7 +5,8 @@
    db #.(concatenate
          'string
          "create table if not exists summary "
-         "(degree integer primary key, processed integer not null, found integer not null);"))
+         "(degree integer primary key, processed integer not null, "
+         "found integer not null, irreducible integer not null);"))
   (sqlite:execute-non-query
    db #.(concatenate
          'string
@@ -14,8 +15,8 @@
   (sqlite:execute-non-query
    db #.(concatenate
          'string
-         "insert or ignore into summary (degree, processed, found) "
-         "values (?, 0, 0);")
+         "insert or ignore into summary (degree, processed, found, irreducible) "
+         "values (?, 0, 0, 0);")
    deg))
 
 (defun find-collisions (db-pathname deg nworkers)
@@ -34,23 +35,26 @@
         (let ((threads (loop repeat nworkers collect (start-worker deg))))
           (restart-case
               (loop while t do
-                    (flexi-streams:with-input-from-sequence
-                        (in (pzmq:recv-octets accum-socket))
+                    (let* ((report (flexi-streams:with-input-from-sequence
+                                       (in (pzmq:recv-octets accum-socket))
+                                     (cl-store:restore in)))
+                           (processed   (report-processed report))
+                           (irreducible (report-irreducible report))
+                           (found       (report-found report)))
                       (sqlite:with-transaction db
-                        (destructuring-bind (processed . polys)
-                            (cl-store:restore in)
+                        (sqlite:execute-non-query
+                         db #.(concatenate
+                               'string
+                               "update summary set "
+                               "processed = processed + ?, found = found + ?, "
+                               "irreducible = irreducible + ? "
+                               "where degree = ?;")
+                         processed (length found) irreducible deg)
+                        (dolist (poly found)
                           (sqlite:execute-non-query
-                           db #.(concatenate
-                                 'string
-                                 "update summary set "
-                                 "processed = processed + ?, found = found + ? "
-                                 "where degree = ?;")
-                           processed (length polys) deg)
-                          (dolist (poly polys)
-                            (sqlite:execute-non-query
-                             db
-                             "insert or ignore into collisions (poly, degree) values (?, ?)"
-                             poly deg))))))
+                           db
+                           "insert or ignore into collisions (poly, degree) values (?, ?)"
+                           poly deg)))))
             (stop-workers ()
               (pzmq:send control-socket nil)
               (mapc #'sb-thread:join-thread threads))))))))
