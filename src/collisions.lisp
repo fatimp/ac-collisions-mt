@@ -19,7 +19,11 @@
          "values (?, 0, 0, 0);")
    deg))
 
-(defun find-collisions (db-pathname deg nworkers)
+(defun stop-workers (socket threads)
+  (pzmq:send socket nil)
+  (mapc #'sb-thread:join-thread threads))
+
+(defun find-collisions (db-pathname deg nworkers &optional count)
   (pzmq:with-context (ctx :io-threads 0)
     (pzmq:with-sockets ((control-socket :pub)
                         (accum-socket   :sub))
@@ -34,30 +38,33 @@
         ;; Start workers
         (let ((threads (loop repeat nworkers collect (start-worker deg))))
           (restart-case
-              (loop while t do
-                    (let* ((report (flexi-streams:with-input-from-sequence
-                                       (in (pzmq:recv-octets accum-socket))
-                                     (cl-store:restore in)))
-                           (processed   (report-processed report))
-                           (irreducible (report-irreducible report))
-                           (found       (report-found report)))
-                      (sqlite:with-transaction db
+              (loop with total = 0
+                    while (or (not count) (< total count))
+                    for report = (flexi-streams:with-input-from-sequence
+                                     (in (pzmq:recv-octets accum-socket))
+                                   (cl-store:restore in))
+                    for processed   = (report-processed report)
+                    for irreducible = (report-irreducible report)
+                    for found       = (report-found report)
+                    do
+                    (sqlite:with-transaction db
+                      (sqlite:execute-non-query
+                       db #.(concatenate
+                             'string
+                             "update summary set "
+                             "processed = processed + ?, found = found + ?, "
+                             "irreducible = irreducible + ? "
+                             "where degree = ?;")
+                       processed (length found) irreducible deg)
+                      (dolist (poly found)
                         (sqlite:execute-non-query
-                         db #.(concatenate
-                               'string
-                               "update summary set "
-                               "processed = processed + ?, found = found + ?, "
-                               "irreducible = irreducible + ? "
-                               "where degree = ?;")
-                         processed (length found) irreducible deg)
-                        (dolist (poly found)
-                          (sqlite:execute-non-query
-                           db
-                           "insert or ignore into collisions (poly, degree) values (?, ?)"
-                           poly deg)))))
+                         db
+                         "insert or ignore into collisions (poly, degree) values (?, ?)"
+                         poly deg)))
+                    (incf total processed)
+                    finally (return (stop-workers control-socket threads)))
             (stop-workers ()
-              (pzmq:send control-socket nil)
-              (mapc #'sb-thread:join-thread threads))))))))
+              (stop-workers control-socket threads))))))))
 
 (defun unroll-factors (factors)
   (labels ((%unroll (factor acc)

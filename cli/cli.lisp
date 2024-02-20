@@ -91,11 +91,10 @@
       (terpri *standard-output*))))
 
 (defmethod launch ((command (eql :process)) &key degree count workers &allow-other-keys)
-  (declare (ignore count))
   (ensure-directories-exist *database-directory*)
   (handler-bind
       ((sb-sys:interactive-interrupt #'shutdown))
-    (find-collisions (get-db-pathname) degree workers)))
+    (find-collisions (get-db-pathname) degree workers count)))
 
 (defun main ()
   (setq *random-state* (make-random-state t))
