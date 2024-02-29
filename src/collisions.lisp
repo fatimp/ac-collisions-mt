@@ -77,19 +77,16 @@
 (defun construct-collisions (f)
   (multiple-value-bind (palindromes non-palindromes)
       (sera:partition #'palindromep (unroll-factors (zx:factor f)))
-    (let* ((sym-part (reduce #'p:multiply palindromes :initial-value (car non-palindromes)))
-           (non-sym-part (cdr non-palindromes))
-           (fns-iter (si:list->iterator (list #'identity #'reverse-polynomial)))
-           (f-iter (si:list->iterator non-sym-part))
-           (iter (si:imap
-                  (lambda (elt)
-                    (destructuring-bind (fn . f) elt
-                      (funcall fn f)))
-                  (si:product fns-iter f-iter))))
+    (let ((sym-part (reduce #'p:multiply palindromes :initial-value (car non-palindromes)))
+          (non-sym-part (cdr non-palindromes)))
       (si:collect
           (si:imap
-           (lambda (f) (p:multiply f sym-part))
-           iter)))))
+           (lambda (fns)
+             (apply #'p:multiply sym-part
+                    (mapcar #'funcall (alex:flatten fns) non-sym-part)))
+           (reduce #'si:product
+                   (loop repeat (length non-sym-part) collect
+                         (si:list->iterator (list #'identity #'reverse-polynomial)))))))))
 
 (defun collisions (db-pathname deg)
   (sqlite:with-open-database (db (uiop:native-namestring (pathname db-pathname)))
