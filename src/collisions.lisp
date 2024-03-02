@@ -83,10 +83,9 @@
           (si:imap
            (lambda (fns)
              (apply #'p:multiply sym-part
-                    (mapcar #'funcall (alex:flatten fns) non-sym-part)))
-           (reduce #'si:product
-                   (loop repeat (length non-sym-part) collect
-                         (si:list->iterator (list #'identity #'reverse-polynomial)))))))))
+                    (mapcar #'funcall fns non-sym-part)))
+           (si:power (si:list->iterator (list #'identity #'reverse-polynomial))
+                     (length non-sym-part)))))))
 
 (defun collisions (db-pathname deg)
   (sqlite:with-open-database (db (uiop:native-namestring (pathname db-pathname)))
