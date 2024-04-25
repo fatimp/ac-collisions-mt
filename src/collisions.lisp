@@ -76,7 +76,7 @@
 
 (defun construct-collisions (f)
   (multiple-value-bind (palindromes non-palindromes)
-      (sera:partition #'palindromep (unroll-factors (zx:factor f)))
+      (sera:partition #'p:palindromep (unroll-factors (zx:factor f)))
     (let ((sym-part (reduce #'p:multiply palindromes :initial-value (car non-palindromes)))
           (non-sym-part (cdr non-palindromes)))
       (si:collect
@@ -84,7 +84,7 @@
            (lambda (fns)
              (apply #'p:multiply sym-part
                     (mapcar #'funcall fns non-sym-part)))
-           (si:power (si:list->iterator (list #'identity #'reverse-polynomial))
+           (si:power (si:list->iterator (list #'identity #'p:reciprocal))
                      (length non-sym-part)))))))
 
 (defun collisions (db-pathname deg)

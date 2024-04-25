@@ -5,18 +5,6 @@
   (irreducible integer)
   (found       list))
 
-(sera:-> reverse-polynomial (p:polynomial)
-         (values p:polynomial &optional))
-(defun reverse-polynomial (f)
-  (let ((d (p:degree f)))
-    (p:polynomial
-     (reduce
-      (lambda (acc m)
-        (p:bind-monomial (%d c) m
-          (cons (cons (- d %d) c) acc)))
-      (p:polynomial-coeffs f)
-      :initial-value nil))))
-
 (sera:-> random-polynomial (u:degree)
          (values p:polynomial &optional))
 (defun random-polynomial (deg)
@@ -24,11 +12,6 @@
    p:+one+
    (p:multiply p:+variable+ (p:list->polynomial (loop repeat (1- deg) collect (random 2))))
    (p:polynomial (list (cons deg 1)))))
-
-(sera:-> palindromep (p:polynomial)
-         (values boolean &optional))
-(defun palindromep (f)
-  (p:polynomial= f (reverse-polynomial f)))
 
 (sera:-> factorization-count-if (list (sera:-> (p:polynomial) (values boolean &optional)))
          (values (integer 0) &optional))
@@ -41,7 +24,7 @@
 (sera:-> collidesp (list)
          (values boolean &optional))
 (defun collidesp (factors)
-  (> (factorization-count-if factors (alex:compose #'not #'palindromep)) 1))
+  (> (factorization-count-if factors (alex:compose #'not #'p:palindromep)) 1))
 
 (sera:-> irreduciblep (list)
          (values boolean &optional))
